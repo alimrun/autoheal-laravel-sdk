@@ -1,0 +1,71 @@
+{
+    "description": "Shared redaction cases. The platform redacts telemetry with these rules before storage, and the Laravel SDK before sending; both test suites run every case. Each input is passed to the redactor and must equal its expected value. Keys are matched case-insensitively with '-' and '_' ignored. All secrets here are made up.",
+    "marker": "[redacted]",
+    "cases": [
+        {
+            "name": "password key at the top level",
+            "input": { "email": "dev@example.test", "password": "hunter2" },
+            "expected": { "email": "dev@example.test", "password": "[redacted]" }
+        },
+        {
+            "name": "sensitive keys at depth, any value type",
+            "input": { "request": { "headers": { "Authorization": "Basic Zm9vOmJhcg==", "X-Api-Key": "abc123" }, "cookie": ["a=1", "b=2"] }, "user": { "Card_Number": 4111111111111111, "cvv": "123" } },
+            "expected": { "request": { "headers": { "Authorization": "[redacted]", "X-Api-Key": "[redacted]" }, "cookie": "[redacted]" }, "user": { "Card_Number": "[redacted]", "cvv": "[redacted]" } }
+        },
+        {
+            "name": "token, secret, session and private key names",
+            "input": { "csrf_token": "t0k3n", "client-secret": "s3cr3t", "SESSION_ID": "abcd", "privateKey": "x", "aws_access_key_id": "y", "passwd": "z" },
+            "expected": { "csrf_token": "[redacted]", "client-secret": "[redacted]", "SESSION_ID": "[redacted]", "privateKey": "[redacted]", "aws_access_key_id": "[redacted]", "passwd": "[redacted]" }
+        },
+        {
+            "name": "null under a sensitive key stays null",
+            "input": { "password": null },
+            "expected": { "password": null }
+        },
+        {
+            "name": "bearer token inside a string",
+            "input": "Request failed with header Bearer abc.DEF-123_xyz~/+= and retried",
+            "expected": "Request failed with header Bearer [redacted] and retried"
+        },
+        {
+            "name": "JWT inside a string",
+            "input": "token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.c2lnbmF0dXJlLXZhbHVl expired",
+            "expected": "token [redacted] expired"
+        },
+        {
+            "name": "private key block",
+            "input": "loaded -----BEGIN RSA PRIVATE KEY-----\nMIIBOgIBAAJBAKj34GkxFhD90vcNLYLInFEX6Ppy1tPf9Cnzj4p4WGeKLs1Pt8Qu\n-----END RSA PRIVATE KEY----- ok",
+            "expected": "loaded [redacted] ok"
+        },
+        {
+            "name": "AutoHeal SDK key, agent credential and enrollment token",
+            "input": "keys ahk_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA aha_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB ahe_CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+            "expected": "keys [redacted] [redacted] [redacted]"
+        },
+        {
+            "name": "AWS access key id",
+            "input": "using AKIAABCDEFGHIJKLMNOP for s3",
+            "expected": "using [redacted] for s3"
+        },
+        {
+            "name": "password in a URL",
+            "input": "SQLSTATE[08006] could not connect to pgsql://app_user:Sup3r-S3cret@db.internal:5432/shop",
+            "expected": "SQLSTATE[08006] could not connect to pgsql://app_user:[redacted]@db.internal:5432/shop"
+        },
+        {
+            "name": "password in a connection string",
+            "input": "Server=db;Database=shop;User Id=app;Password=Sup3rS3cret;Timeout=5",
+            "expected": "Server=db;Database=shop;User Id=app;Password=[redacted];Timeout=5"
+        },
+        {
+            "name": "patterns apply inside nested values under ordinary keys",
+            "input": { "message": "retry with Bearer zzz111", "attempts": [ "redis://:hunter2@cache:6379" ] },
+            "expected": { "message": "retry with Bearer [redacted]", "attempts": [ "redis://:[redacted]@cache:6379" ] }
+        },
+        {
+            "name": "ordinary values are left alone",
+            "input": { "order_number": "A-10023", "route": "checkout.store", "path": "/checkout", "count": 3, "ok": true, "url": "https://example.test/orders?page=2", "author": "Token Ring Labs" },
+            "expected": { "order_number": "A-10023", "route": "checkout.store", "path": "/checkout", "count": 3, "ok": true, "url": "https://example.test/orders?page=2", "author": "Token Ring Labs" }
+        }
+    ]
+}

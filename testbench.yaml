@@ -1,0 +1,19 @@
+laravel: '@testbench'
+
+providers:
+  - AutoHeal\Laravel\AutoHealServiceProvider
+
+workbench:
+  start: '/autoheal/sample-exception'
+  install: false
+  health: false
+  discovers:
+    web: false
+    api: true
+    commands: false
+    components: false
+    factories: false
+    views: false
+  build: []
+  assets: []
+  sync: []

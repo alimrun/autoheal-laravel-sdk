@@ -1,0 +1,11 @@
+{
+    "preset": "psr12",
+    "rules": {
+        "blank_line_before_statement": true,
+        "concat_space": {
+            "spacing": "one"
+        },
+        "method_argument_space": true,
+        "single_line_throw": false
+    }
+}

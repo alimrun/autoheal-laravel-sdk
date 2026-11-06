@@ -1,0 +1,181 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://autoheal.ai/contracts/telemetry-event.schema.json",
+    "title": "AutoHeal telemetry event, schema version 1",
+    "description": "One event in the `events` array of POST /api/v1/telemetry/events and POST /api/v1/agent/telemetry/events. A batch holds 1 to 50 events, each at most 64 KB encoded, in a request body of at most 512 KB. Fields not listed here are dropped. The organization and environment come from the credential, never from the event.",
+    "type": "object",
+    "required": ["schema_version", "event_id", "type", "severity", "occurred_at", "message"],
+    "properties": {
+        "schema_version": { "const": 1 },
+        "event_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
+            "description": "Chosen by the sender and reused on every retry. An environment stores each event_id once."
+        },
+        "type": { "enum": ["exception", "error_log", "heartbeat", "health_check", "deployment"] },
+        "severity": { "enum": ["debug", "info", "warning", "error", "critical"] },
+        "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "RFC 3339. At most 24 hours in the past and 5 minutes in the future."
+        },
+        "message": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "release": { "type": "string", "maxLength": 100 },
+        "service": { "type": "string", "maxLength": 100 },
+        "fingerprint": { "type": "string", "maxLength": 128, "description": "A grouping hint. Not used for grouping yet." },
+        "context": {
+            "type": "object",
+            "description": "Free-form, nested at most 8 levels, strings at most 8 KB. Secrets are redacted before storage."
+        },
+        "body": { "type": "object" }
+    },
+    "allOf": [
+        {
+            "if": { "properties": { "type": { "const": "exception" } } },
+            "then": { "properties": { "body": { "$ref": "#/$defs/exception" } }, "required": ["body"] }
+        },
+        {
+            "if": { "properties": { "type": { "const": "error_log" } } },
+            "then": { "properties": { "body": { "$ref": "#/$defs/error_log" } } }
+        },
+        {
+            "if": { "properties": { "type": { "const": "heartbeat" } } },
+            "then": { "properties": { "body": { "$ref": "#/$defs/heartbeat" } }, "required": ["body"] }
+        },
+        {
+            "if": { "properties": { "type": { "const": "health_check" } } },
+            "then": { "properties": { "body": { "$ref": "#/$defs/health_check" } }, "required": ["body"] }
+        },
+        {
+            "if": { "properties": { "type": { "const": "deployment" } } },
+            "then": { "properties": { "body": { "$ref": "#/$defs/deployment" } }, "required": ["body"] }
+        }
+    ],
+    "$defs": {
+        "check_name": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,100}$" },
+        "exception": {
+            "type": "object",
+            "required": ["class"],
+            "properties": {
+                "class": { "type": "string", "maxLength": 255 },
+                "code": { "type": "string", "maxLength": 100 },
+                "frames": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "file": { "type": "string", "maxLength": 500 },
+                            "line": { "type": "integer", "minimum": 0 },
+                            "function": { "type": "string", "maxLength": 255 },
+                            "class": { "type": "string", "maxLength": 255 },
+                            "in_app": { "type": "boolean" }
+                        }
+                    }
+                },
+                "frames_omitted": { "type": "integer", "minimum": 0 },
+                "previous": {
+                    "type": "array",
+                    "maxItems": 3,
+                    "items": {
+                        "type": "object",
+                        "required": ["class"],
+                        "properties": {
+                            "class": { "type": "string", "maxLength": 255 },
+                            "message": { "type": "string", "maxLength": 2000 }
+                        }
+                    }
+                }
+            }
+        },
+        "error_log": {
+            "type": "object",
+            "properties": {
+                "level": { "type": "string", "maxLength": 20 },
+                "channel": { "type": "string", "maxLength": 100 }
+            }
+        },
+        "heartbeat": {
+            "type": "object",
+            "required": ["name"],
+            "properties": { "name": { "$ref": "#/$defs/check_name" } }
+        },
+        "health_check": {
+            "type": "object",
+            "required": ["name", "status"],
+            "properties": {
+                "name": { "$ref": "#/$defs/check_name" },
+                "status": { "enum": ["up", "degraded", "down"] },
+                "latency_ms": { "type": "integer", "minimum": 0, "maximum": 600000 }
+            }
+        },
+        "deployment": {
+            "type": "object",
+            "required": ["release"],
+            "properties": {
+                "release": { "type": "string", "minLength": 1, "maxLength": 100 },
+                "source": { "type": "string", "maxLength": 100 }
+            }
+        }
+    },
+    "examples": [
+        {
+            "schema_version": 1,
+            "event_id": "0f8b1c2e-6a3d-4c5e-9b7a-1d2e3f4a5b6c",
+            "type": "exception",
+            "severity": "error",
+            "occurred_at": "2026-11-07T09:15:02Z",
+            "message": "Undefined array key \"total\"",
+            "release": "2026.11.06-1",
+            "service": "checkout-api",
+            "context": { "request": { "method": "POST", "path": "/checkout", "route": "checkout.store" }, "environment": "production" },
+            "body": {
+                "class": "ErrorException",
+                "code": "0",
+                "frames": [
+                    { "file": "app/Http/Controllers/CheckoutController.php", "line": 48, "function": "store", "class": "App\\Http\\Controllers\\CheckoutController", "in_app": true },
+                    { "file": "vendor/laravel/framework/src/Illuminate/Routing/Controller.php", "line": 54, "function": "callAction", "class": "Illuminate\\Routing\\Controller", "in_app": false }
+                ],
+                "frames_omitted": 0,
+                "previous": []
+            }
+        },
+        {
+            "schema_version": 1,
+            "event_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+            "type": "error_log",
+            "severity": "error",
+            "occurred_at": "2026-11-07T09:16:10Z",
+            "message": "Payment provider timed out",
+            "service": "checkout-api",
+            "body": { "level": "error", "channel": "stack" }
+        },
+        {
+            "schema_version": 1,
+            "event_id": "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e",
+            "type": "heartbeat",
+            "severity": "info",
+            "occurred_at": "2026-11-07T09:17:00Z",
+            "message": "Heartbeat scheduler",
+            "body": { "name": "scheduler" }
+        },
+        {
+            "schema_version": 1,
+            "event_id": "3c4d5e6f-7a8b-4c9d-0e1f-2a3b4c5d6e7f",
+            "type": "health_check",
+            "severity": "warning",
+            "occurred_at": "2026-11-07T09:17:05Z",
+            "message": "Health check database degraded",
+            "body": { "name": "database", "status": "degraded", "latency_ms": 840 }
+        },
+        {
+            "schema_version": 1,
+            "event_id": "4d5e6f7a-8b9c-4d0e-1f2a-3b4c5d6e7f8a",
+            "type": "deployment",
+            "severity": "info",
+            "occurred_at": "2026-11-07T08:58:41Z",
+            "message": "Deployed 2026.11.06-1",
+            "body": { "release": "2026.11.06-1", "source": "github-actions" }
+        }
+    ]
+}
