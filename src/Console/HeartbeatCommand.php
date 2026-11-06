@@ -11,20 +11,30 @@ final class HeartbeatCommand extends Command
     use ReportsDelivery;
 
     protected $signature = 'autoheal:heartbeat
-        {name : The heartbeat name: letters, digits, ".", "_", ":" and "-", up to 100 characters}';
+        {name : The heartbeat name: letters, digits, ".", "_", ":" and "-", up to 100 characters}
+        {--every= : How often the heartbeat is expected, in seconds, from 60 to 604800}';
 
     protected $description = 'Send a named heartbeat to AutoHeal';
 
     public function handle(AutoHeal $autoHeal, EventFactory $eventFactory): int
     {
-        $event = $eventFactory->heartbeat((string) $this->argument('name'));
+        $name = (string) $this->argument('name');
+        $every = $this->option('every');
 
-        if ($event === null) {
+        if (! $eventFactory->isCheckName($name)) {
             $this->components->error('The name must be 1 to 100 letters, digits, ".", "_", ":" or "-".');
 
             return self::FAILURE;
         }
 
-        return $this->report($autoHeal, $event);
+        if ($every !== null && (! ctype_digit($every) || ! $eventFactory->isHeartbeatInterval((int) $every))) {
+            $this->components->error('The interval must be a whole number of seconds from 60 to 604800 (1 minute to 7 days).');
+
+            return self::FAILURE;
+        }
+
+        $event = $eventFactory->heartbeat($name, $every === null ? null : (int) $every);
+
+        return $event === null ? self::FAILURE : $this->report($autoHeal, $event);
     }
 }

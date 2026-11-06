@@ -55,7 +55,7 @@ php artisan autoheal:health database degraded --latency=840
 
 ```php
 // routes/console.php
-Schedule::command('autoheal:heartbeat scheduler')->everyMinute();
+Schedule::command('autoheal:heartbeat scheduler --every=60')->everyMinute();
 ```
 
 These commands send straight away and say whether AutoHeal accepted the event. They always exit successfully, whatever AutoHeal answers, so an AutoHeal outage never fails a deploy or the scheduler. They exit with an error only for input AutoHeal would refuse, such as a name with spaces.
@@ -66,11 +66,11 @@ From code, events are buffered and sent with the rest:
 use AutoHeal\Laravel\Facades\AutoHeal;
 
 AutoHeal::deployment('2026.11.06-1', 'forge');
-AutoHeal::heartbeat('nightly-import');
+AutoHeal::heartbeat('nightly-import', every: 86400);
 AutoHeal::healthCheck('database', 'up', latencyMs: 12);
 ```
 
-Names are 1 to 100 letters, digits, `.`, `_`, `:` or `-`. The status is `up`, `degraded` or `down`. Input AutoHeal would refuse is ignored, not thrown.
+Names are 1 to 100 letters, digits, `.`, `_`, `:` or `-`. A heartbeat's interval is in seconds, from 60 to 604800 (1 minute to 7 days), and AutoHeal reports a missed heartbeat only when the heartbeat states its interval. The status is `up`, `degraded` or `down`. Input AutoHeal would refuse is ignored, not thrown.
 
 ### Testing the connection
 

@@ -56,9 +56,9 @@ final class AutoHeal
         $this->record(fn (): ?array => $this->eventFactory->deployment($release, $source));
     }
 
-    public function heartbeat(string $name): void
+    public function heartbeat(string $name, ?int $every = null): void
     {
-        $this->record(fn (): ?array => $this->eventFactory->heartbeat($name));
+        $this->record(fn (): ?array => $this->eventFactory->heartbeat($name, $every));
     }
 
     public function healthCheck(string $name, string $status, ?int $latencyMs = null): void

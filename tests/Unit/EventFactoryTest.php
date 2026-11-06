@@ -16,6 +16,7 @@ it('builds every event type as the platform\'s schema expects', function () {
         eventFactory()->deployment('2026.11.06-1', 'github-actions'),
         eventFactory()->heartbeat('scheduler'),
         eventFactory()->healthCheck('database', 'degraded', 840),
+        eventFactory()->heartbeat('nightly-import', 86400),
     ];
 
     foreach ($events as $event) {
@@ -32,7 +33,8 @@ it('builds every event type as the platform\'s schema expects', function () {
         ->and($events[2]['body'])->toBe(['release' => '2026.11.06-1', 'source' => 'github-actions'])
         ->and($events[3]['body'])->toBe(['name' => 'scheduler'])
         ->and($events[4]['body'])->toBe(['name' => 'database', 'status' => 'degraded', 'latency_ms' => 840])
-        ->and($events[4]['severity'])->toBe('warning');
+        ->and($events[4]['severity'])->toBe('warning')
+        ->and($events[5]['body'])->toBe(['name' => 'nightly-import', 'interval_seconds' => 86400]);
 });
 
 it('gives every event its own id', function () {
@@ -77,10 +79,17 @@ it('refuses to build events the platform would reject', function () {
     expect(eventFactory()->heartbeat('has spaces'))->toBeNull()
         ->and(eventFactory()->heartbeat(str_repeat('a', 101)))->toBeNull()
         ->and(eventFactory()->heartbeat(''))->toBeNull()
+        ->and(eventFactory()->heartbeat('scheduler', EventFactory::MIN_HEARTBEAT_INTERVAL_SECONDS - 1))->toBeNull()
+        ->and(eventFactory()->heartbeat('scheduler', EventFactory::MAX_HEARTBEAT_INTERVAL_SECONDS + 1))->toBeNull()
         ->and(eventFactory()->healthCheck('database', 'sideways'))->toBeNull()
         ->and(eventFactory()->deployment(''))->toBeNull()
         ->and(eventFactory()->deployment(str_repeat('r', 101)))->toBeNull()
         ->and(eventFactory()->errorLog('loud', 'message'))->toBeNull();
+});
+
+it('accepts heartbeat intervals at both ends of the schema range', function () {
+    expect(eventFactory()->heartbeat('scheduler', 60)['body']['interval_seconds'])->toBe(60)
+        ->and(eventFactory()->heartbeat('scheduler', 604800)['body']['interval_seconds'])->toBe(604800);
 });
 
 it('clamps health check latency to the schema range', function () {

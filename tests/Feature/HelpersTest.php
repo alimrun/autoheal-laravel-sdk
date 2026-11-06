@@ -23,10 +23,22 @@ it('buffers deployments, heartbeats and health checks reported from code', funct
     }
 });
 
+it('sends how often a heartbeat reported from code is expected', function () {
+    acceptingAutoHeal();
+
+    AutoHeal::heartbeat('nightly-import', every: 86400);
+    AutoHeal::flush();
+
+    expect(sentEvents()[0]['body'])->toBe(['name' => 'nightly-import', 'interval_seconds' => 86400]);
+
+    expectValidEvent(sentEvents()[0]);
+});
+
 it('ignores input the platform would refuse instead of throwing', function () {
     acceptingAutoHeal();
 
     AutoHeal::heartbeat('not valid');
+    AutoHeal::heartbeat('scheduler', every: 30);
     AutoHeal::healthCheck('database', 'sideways');
     AutoHeal::deployment('');
     AutoHeal::flush();

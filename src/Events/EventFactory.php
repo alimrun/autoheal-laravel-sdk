@@ -19,6 +19,10 @@ final class EventFactory
 
     public const MAX_EVENT_BYTES = 64000;
 
+    public const MIN_HEARTBEAT_INTERVAL_SECONDS = 60;
+
+    public const MAX_HEARTBEAT_INTERVAL_SECONDS = 604800;
+
     private const MAX_MESSAGE_LENGTH = 2000;
 
     private const MAX_SHORT_LENGTH = 100;
@@ -131,13 +135,19 @@ final class EventFactory
     /**
      * @return array<string, mixed>|null
      */
-    public function heartbeat(string $name): ?array
+    public function heartbeat(string $name, ?int $intervalSeconds = null): ?array
     {
-        if (! $this->isCheckName($name)) {
+        if (! $this->isCheckName($name) || ($intervalSeconds !== null && ! $this->isHeartbeatInterval($intervalSeconds))) {
             return null;
         }
 
-        return $this->fit($this->envelope('heartbeat', 'info', "Heartbeat {$name}", $this->context->toArray(), ['name' => $name]));
+        $body = ['name' => $name];
+
+        if ($intervalSeconds !== null) {
+            $body['interval_seconds'] = $intervalSeconds;
+        }
+
+        return $this->fit($this->envelope('heartbeat', 'info', "Heartbeat {$name}", $this->context->toArray(), $body));
     }
 
     /**
@@ -172,6 +182,11 @@ final class EventFactory
     public function isCheckStatus(string $status): bool
     {
         return in_array($status, self::CHECK_STATUSES, true);
+    }
+
+    public function isHeartbeatInterval(int $seconds): bool
+    {
+        return $seconds >= self::MIN_HEARTBEAT_INTERVAL_SECONDS && $seconds <= self::MAX_HEARTBEAT_INTERVAL_SECONDS;
     }
 
     /**

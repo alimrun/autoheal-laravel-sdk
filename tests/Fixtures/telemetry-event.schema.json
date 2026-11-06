@@ -22,7 +22,7 @@
         "message": { "type": "string", "minLength": 1, "maxLength": 2000 },
         "release": { "type": "string", "maxLength": 100 },
         "service": { "type": "string", "maxLength": 100 },
-        "fingerprint": { "type": "string", "maxLength": 128, "description": "A grouping hint. Not used for grouping yet." },
+        "fingerprint": { "type": "string", "maxLength": 128, "description": "A grouping hint. Errors with the same hint in an environment join the same incident." },
         "context": {
             "type": "object",
             "description": "Free-form, nested at most 8 levels, strings at most 8 KB. Secrets are redacted before storage."
@@ -98,7 +98,15 @@
         "heartbeat": {
             "type": "object",
             "required": ["name"],
-            "properties": { "name": { "$ref": "#/$defs/check_name" } }
+            "properties": {
+                "name": { "$ref": "#/$defs/check_name" },
+                "interval_seconds": {
+                    "type": "integer",
+                    "minimum": 60,
+                    "maximum": 604800,
+                    "description": "How often the heartbeat is expected. Only heartbeats that state it are watched for misses."
+                }
+            }
         },
         "health_check": {
             "type": "object",
@@ -157,7 +165,7 @@
             "severity": "info",
             "occurred_at": "2026-11-07T09:17:00Z",
             "message": "Heartbeat scheduler",
-            "body": { "name": "scheduler" }
+            "body": { "name": "scheduler", "interval_seconds": 60 }
         },
         {
             "schema_version": 1,

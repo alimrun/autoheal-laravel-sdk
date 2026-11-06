@@ -76,6 +76,16 @@ it('sends a named heartbeat each time the scheduler runs it', function () {
         ->and(sentEvents()[0]['event_id'])->not->toBe(sentEvents()[1]['event_id']);
 });
 
+it('sends how often a heartbeat is expected when it is given', function () {
+    acceptingAutoHeal();
+
+    $this->artisan('autoheal:heartbeat', ['name' => 'scheduler', '--every' => '60'])->expectsOutputToContain('accepted')->assertExitCode(0);
+
+    expect(sentEvents()[0]['body'])->toBe(['name' => 'scheduler', 'interval_seconds' => 60]);
+
+    expectValidEvent(sentEvents()[0]);
+});
+
 it('reports a health check with its status and latency', function () {
     acceptingAutoHeal();
 
@@ -110,6 +120,9 @@ it('rejects input the platform would refuse, without sending', function (string 
 })->with([
     'long release' => ['autoheal:deploy', ['release' => str_repeat('r', 101)], 'The release must be 1 to 100 characters'],
     'heartbeat name' => ['autoheal:heartbeat', ['name' => 'two words'], 'The name must be'],
+    'heartbeat interval too short' => ['autoheal:heartbeat', ['name' => 'scheduler', '--every' => '59'], 'from 60 to 604800 (1 minute to 7 days)'],
+    'heartbeat interval too long' => ['autoheal:heartbeat', ['name' => 'scheduler', '--every' => '604801'], 'from 60 to 604800 (1 minute to 7 days)'],
+    'heartbeat interval not a number' => ['autoheal:heartbeat', ['name' => 'scheduler', '--every' => 'hourly'], 'from 60 to 604800 (1 minute to 7 days)'],
     'health name' => ['autoheal:health', ['name' => 'two words', 'status' => 'up'], 'The name must be'],
     'health status' => ['autoheal:health', ['name' => 'database', 'status' => 'sideways'], 'The status must be up, degraded or down'],
     'health latency' => ['autoheal:health', ['name' => 'database', 'status' => 'up', '--latency' => 'fast'], 'The latency must be'],
