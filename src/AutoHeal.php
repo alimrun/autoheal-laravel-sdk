@@ -19,6 +19,8 @@ use Throwable;
  */
 final class AutoHeal
 {
+    private const CACHE_HOOK_TOKEN_MIN_LENGTH = 32;
+
     public function __construct(
         private Container $container,
         private Repository $config,
@@ -36,6 +38,18 @@ final class AutoHeal
         return (bool) $this->config->get('autoheal.enabled', true)
             && is_string($key) && $key !== ''
             && is_string($endpoint) && $endpoint !== '';
+    }
+
+    /**
+     * The cache hook never calls AutoHeal, so it needs no key or endpoint, only the master switch.
+     */
+    public function cacheHookEnabled(): bool
+    {
+        $token = $this->config->get('autoheal.cache_hook.token');
+
+        return (bool) $this->config->get('autoheal.enabled', true)
+            && (bool) $this->config->get('autoheal.cache_hook.enabled', false)
+            && is_string($token) && strlen($token) >= self::CACHE_HOOK_TOKEN_MIN_LENGTH;
     }
 
     public function captureException(Throwable $exception): void

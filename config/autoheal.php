@@ -46,4 +46,25 @@ return [
         'access_key',
     ],
 
+    /*
+    | The loopback hook the AutoHeal agent calls for its clear_cache action, at
+    | POST /{path}/{cache}. It stays unregistered until it is enabled with a token of at least 32
+    | characters. The address only picks one of these caches: "views" clears compiled views, and
+    | "store" flushes one store from cache.stores. Flushing a Redis store empties its whole Redis
+    | database, sessions and queues included if they share it.
+    */
+
+    'cache_hook' => [
+        'enabled' => (bool) env('AUTOHEAL_CACHE_HOOK_ENABLED', false),
+
+        'token' => env('AUTOHEAL_CACHE_HOOK_TOKEN'),
+
+        'path' => env('AUTOHEAL_CACHE_HOOK_PATH', 'autoheal/cache'),
+
+        'caches' => [
+            'views' => ['kind' => 'views'],
+            // 'application' => ['kind' => 'store', 'store' => 'redis'],
+        ],
+    ],
+
 ];

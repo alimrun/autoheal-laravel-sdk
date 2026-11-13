@@ -2,6 +2,9 @@
 
 namespace AutoHeal\Laravel;
 
+use AutoHeal\Laravel\CacheHook\CacheClearer;
+use AutoHeal\Laravel\CacheHook\CacheHookController;
+use AutoHeal\Laravel\CacheHook\RestrictToLocalAgent;
 use AutoHeal\Laravel\Console\DeployCommand;
 use AutoHeal\Laravel\Console\HealthCommand;
 use AutoHeal\Laravel\Console\HeartbeatCommand;
@@ -14,11 +17,13 @@ use Illuminate\Console\Events\CommandStarting;
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Contracts\Foundation\CachesRoutes;
 use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Routing\Events\RouteMatched;
+use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\ServiceProvider;
 use Throwable;
@@ -35,6 +40,7 @@ final class AutoHealServiceProvider extends ServiceProvider
 
         $this->app->singleton(AutoHeal::class);
         $this->app->singleton(Buffer::class);
+        $this->app->singleton(CacheClearer::class);
         $this->app->singleton(CircuitBreaker::class);
         $this->app->singleton(EventContext::class);
         $this->app->singleton(EventFactory::class);
@@ -53,6 +59,8 @@ final class AutoHealServiceProvider extends ServiceProvider
             $this->commands([TestCommand::class, DeployCommand::class, HeartbeatCommand::class, HealthCommand::class]);
         }
 
+        $this->registerCacheHook();
+
         if (! $this->app->make(AutoHeal::class)->isEnabled()) {
             return;
         }
@@ -61,6 +69,26 @@ final class AutoHealServiceProvider extends ServiceProvider
         $this->captureLogs();
         $this->trackContext();
         $this->flushWhenFinished();
+    }
+
+    /**
+     * Outside the web group, so the hook has no session, cookies or CSRF check. A cached route
+     * table already holds it, and the middleware still refuses it once the hook is turned off.
+     */
+    private function registerCacheHook(): void
+    {
+        if (! $this->app->make(AutoHeal::class)->cacheHookEnabled()
+            || ($this->app instanceof CachesRoutes && $this->app->routesAreCached())) {
+            return;
+        }
+
+        $path = trim((string) $this->app->make('config')->get('autoheal.cache_hook.path'), '/');
+
+        $this->app->make(Router::class)
+            ->post(($path === '' ? 'autoheal/cache' : $path) . '/{cache}', CacheHookController::class)
+            ->where('cache', CacheHookController::CACHE_NAME_PATTERN)
+            ->middleware(RestrictToLocalAgent::class)
+            ->name('autoheal.cache-hook');
     }
 
     /**

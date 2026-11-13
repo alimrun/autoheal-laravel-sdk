@@ -33,7 +33,10 @@ To change the defaults, publish the configuration with `php artisan vendor:publi
 | `AUTOHEAL_SERVICE` | none | The service name, sent with every event. |
 | `AUTOHEAL_TRANSPORT` | `http` | `http` sends after the response, job or command. `queue` hands events to a queued job. |
 | `AUTOHEAL_LOG_LEVEL` | `error` | The lowest log level that is reported. |
-| `AUTOHEAL_ENABLED` | `true` | Set to `false` to turn the SDK off, for example in the application's own test suite. |
+| `AUTOHEAL_ENABLED` | `true` | Set to `false` to turn the SDK off, for example in the application's own test suite. This also turns the cache hook off. |
+| `AUTOHEAL_CACHE_HOOK_ENABLED` | `false` | Turns on the [cache hook](#cache-hook-for-agent-recovery) for the agent's `clear_cache` action. |
+| `AUTOHEAL_CACHE_HOOK_TOKEN` | none | The hook's bearer token, at least 32 characters. Without it the hook is not registered. |
+| `AUTOHEAL_CACHE_HOOK_PATH` | `autoheal/cache` | The hook's path prefix. The hook answers at `POST /<prefix>/<cache>`. |
 
 The key alone decides which organization, project and environment an event is stored in. The SDK never sends an organization, project or environment identifier.
 
@@ -71,6 +74,96 @@ AutoHeal::healthCheck('database', 'up', latencyMs: 12);
 ```
 
 Names are 1 to 100 letters, digits, `.`, `_`, `:` or `-`. A heartbeat's interval is in seconds, from 60 to 604800 (1 minute to 7 days), and AutoHeal reports a missed heartbeat only when the heartbeat states its interval. The status is `up`, `degraded` or `down`. Input AutoHeal would refuse is ignored, not thrown.
+
+### Cache hook for agent recovery
+
+From agent 0.2.0, the AutoHeal agent can run `clear_cache`: AutoHeal sends it a signed task, and the agent sends one `POST` to a cache hook on the same host. The SDK has a ready-made hook, so no code is needed. It is off unless you turn it on, and it can clear only the caches you list.
+
+1. Generate a token once, and keep it out of source control:
+
+   ```bash
+   openssl rand -hex 32
+   ```
+
+2. In the application's `.env`:
+
+   ```dotenv
+   AUTOHEAL_CACHE_HOOK_ENABLED=true
+   AUTOHEAL_CACHE_HOOK_TOKEN=<the token>
+   ```
+
+3. List the caches the hook may clear, in `config/autoheal.php` (publish it first with `php artisan vendor:publish --tag=autoheal-config`):
+
+   ```php
+   'cache_hook' => [
+       // ...
+       'caches' => [
+           'views' => ['kind' => 'views'],
+           'application' => ['kind' => 'store', 'store' => 'redis'],
+       ],
+   ],
+   ```
+
+   There are two kinds:
+   - `views` clears the compiled views, as `php artisan view:clear` does.
+   - `store` flushes one store from `config/cache.php`'s `stores`.
+
+   **Flushing a Redis store empties its whole Redis database.** If sessions, queues or anything else share that database, they are wiped too. Give the cache its own Redis connection or database before listing it.
+
+   The hook's address picks one entry from this list. A request cannot name a command, a file or any cache that is not listed. A name is 1 to 100 letters, digits, `.`, `_` or `-`, starting with a letter or digit.
+
+4. If the application caches its routes, run `php artisan route:cache` again.
+
+5. Put the same token in a file only the agent can read:
+
+   ```bash
+   sudo install -d -m 0750 -o root -g autoheal-agent /etc/autoheal/hooks
+   sudo install -m 0600 -o autoheal-agent -g autoheal-agent /dev/null /etc/autoheal/hooks/views.token
+   sudoedit /etc/autoheal/hooks/views.token
+   ```
+
+   Then add one hook per cache to the agent's configuration, using the same name, and restart the agent:
+
+   ```yaml
+   recovery:
+     actions:
+       clear_cache:
+         hooks:
+           - name: views
+             url: "http://127.0.0.1/autoheal/cache/views"
+             token_file: /etc/autoheal/hooks/views.token
+             timeout: 30s
+   ```
+
+#### What the hook accepts
+
+The agent's side is described in the agent README, under "The cache hook contract". The hook checks each request in this order:
+
+| Check | Answer when it fails |
+|---|---|
+| The hook is still on | `404` |
+| The connection comes from `127.0.0.0/8` or `::1`, with no `Forwarded`, `X-Forwarded-For`, `X-Forwarded-Host` or `X-Real-IP` header | `403` |
+| `Authorization: Bearer <token>` matches the configured token | `401` |
+| The cache is listed | `404` |
+| The cache's entry is valid: a known kind, and a store that exists | `500`, and one warning in the application's log |
+| The body is exactly `{"task_id": "<26 letters or digits>"}` | `422` |
+| The cache was cleared | `204` with no body, or `500` if it could not be cleared |
+
+- **Peer address:** the hook reads the address of the connection itself, not `X-Forwarded-For`, even when the application trusts proxies.
+- **Repeats:** clearing is safe to repeat.
+- **Logging:** each clear writes one `info` line with the cache name and the task ID. Refusals are not logged.
+- **Secrets:** the token is never logged or returned.
+- **AutoHeal:** the hook sends nothing to AutoHeal. AutoHeal judges the outcome from the agent's health check.
+
+#### Reaching the application on loopback
+
+The hook URL must reach the application on this host:
+
+- **nginx:** use a server that answers on `127.0.0.1`. Either a `default_server`, or a dedicated loopback-only block such as `listen 127.0.0.1:8081;` that serves the same application. Then use `http://127.0.0.1:8081/autoheal/cache/views` in the agent.
+- **Octane, or `php artisan serve`:** use the port it listens on.
+- **Public proxy:** if a public reverse proxy on the same host sends requests without any forwarding header, block `/autoheal/cache/` there. Otherwise public requests would look local, and only the token would stop them.
+- **HTTPS redirect:** a global middleware that redirects to HTTPS makes the agent report the action as failed, because the agent never follows a redirect. Use an `https` hook URL with the agent's `ca_file`, or exempt the hook's path.
+- **Maintenance mode:** while the application is down (`php artisan down`), the hook answers `503`, and the agent reports the action as failed.
 
 ### Testing the connection
 
