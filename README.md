@@ -7,19 +7,11 @@ Reports a Laravel application's exceptions, error logs, deployments, heartbeats 
 
 ## Install
 
-Until the package is published, install it from this folder with a Composer path repository. In the application's `composer.json`:
-
-```json
-"repositories": [
-    { "type": "path", "url": "../autoheal-laravel-sdk" }
-]
-```
-
-Then:
-
 ```bash
-composer require autoheal/laravel-sdk:@dev
+composer require autoheal/laravel-sdk
 ```
+
+Package discovery registers the service provider and the `AutoHeal` facade. Set `AUTOHEAL_KEY` and `AUTOHEAL_ENDPOINT` (below) and the SDK starts reporting.
 
 To change the defaults, publish the configuration with `php artisan vendor:publish --tag=autoheal-config`.
 

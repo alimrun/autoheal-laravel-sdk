@@ -4,6 +4,11 @@
     "type": "library",
     "license": "proprietary",
     "keywords": ["laravel", "autoheal", "monitoring", "error-tracking"],
+    "homepage": "https://github.com/alimrun/autoheal-laravel-sdk",
+    "support": {
+        "issues": "https://github.com/alimrun/autoheal-laravel-sdk/issues",
+        "source": "https://github.com/alimrun/autoheal-laravel-sdk"
+    },
     "require": {
         "php": "^8.3",
         "illuminate/console": "^11.0|^12.0|^13.0",
