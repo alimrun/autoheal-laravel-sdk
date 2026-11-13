@@ -216,3 +216,7 @@ composer serve
 composer install
 composer check   # Pint, PHPStan and Pest
 ```
+
+## License
+
+MIT. See [LICENSE](LICENSE).

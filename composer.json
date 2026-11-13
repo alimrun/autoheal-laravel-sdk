@@ -2,7 +2,7 @@
     "name": "autoheal/laravel-sdk",
     "description": "Reports exceptions, error logs, deployments, heartbeats and health checks from a Laravel application to AutoHeal.",
     "type": "library",
-    "license": "proprietary",
+    "license": "MIT",
     "keywords": ["laravel", "autoheal", "monitoring", "error-tracking"],
     "homepage": "https://github.com/alimrun/autoheal-laravel-sdk",
     "support": {
